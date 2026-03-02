@@ -45,14 +45,15 @@ def write_articles_for_videos(videos_with_transcripts):
             if "choices" in result:
                 content_text = result['choices'][0]['message']['content']
                 
-                # 关键修复：这里的 Key 必须叫 'article' 以匹配你的 send_email.py
+                # ✅ 关键修复：补齐 send_email.py 需要的所有字段
                 articles.append({
                     "title": video['title'],
-                    "article": content_text,  # 统一改为 article
-                    "content": content_text,  # 保留一份 content 备用
-                    "url": video['url']
+                    "article": content_text,  # 核心文章内容
+                    "url": video['url'],      # 视频链接
+                    "channel": video.get('channel', 'YouTube Channel'), # 补齐频道名，如果没有则显示默认
+                    "content": content_text   # 兼容性冗余
                 })
-                print(f" ✅ Groq 写作成功！")
+                print(f" ✅ Groq 写作成功！已打包所有必要字段。")
             else:
                 print(f" ❌ Groq 报错: {result.get('error', {}).get('message')}")
         except Exception as e:
