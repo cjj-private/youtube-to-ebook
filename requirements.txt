@@ -1,8 +1,5 @@
-requests==2.31.0
 google-api-python-client
-python-dotenv
-youtube-transcript-api
-anthropic
-markdown
-ebooklib
+google-generativeai
 streamlit
+requests
+python-dotenv
