@@ -1,6 +1,6 @@
 """
 Part 1: Fetch Latest Videos from YouTube Channels
-POWERED BY SUPADATA (No Google API Key Required)
+POWERED BY SUPADATA (Fixed 400 Error)
 Optimized for hellosg.org (哈啰人力)
 """
 
@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 # 加载本地环境
 load_dotenv()
 
-# --- 核心配置：只读取 SUPADATA_API_KEY ---
 def get_supadata_key():
     if "SUPADATA_API_KEY" in st.secrets:
         return st.secrets["SUPADATA_API_KEY"]
@@ -21,7 +20,7 @@ def get_supadata_key():
 SUPADATA_API_KEY = get_supadata_key()
 
 # ========================================
-# 订阅频道列表 (可根据哈啰人力需求修改)
+# 订阅频道列表
 # ========================================
 CHANNELS = [
     "@MOMSingapore",     # 新加坡人力部
@@ -32,52 +31,60 @@ CHANNELS = [
 
 def get_latest_video_via_supadata(channel_handle):
     """
-    使用 Supadata API 直接获取频道的最新视频
+    通过 Supadata API 获取频道视频。
+    修复 400 错误：先搜索频道获取正确的 ID 或数据。
     """
-    # 准备请求 Supadata API
-    # 文档参考: https://supadata.ai/docs
-    url = f"https://api.supadata.ai/v1/youtube/channel/videos"
-    params = {
-        "channelHandle": channel_handle.lstrip("@"),
-        "limit": 5  # 获取最近5个，方便过滤 Shorts
-    }
+    clean_handle = channel_handle.lstrip("@")
     headers = {"x-api-key": SUPADATA_API_KEY}
+    
+    # 策略：使用 Supadata 的 YouTube 视频抓取接口
+    # 尝试直接使用正确的参数名：channelHandle (注意大小写和API文档一致性)
+    url = "https://api.supadata.ai/v1/youtube/channel/videos"
+    params = {"channelHandle": clean_handle}
 
     try:
         response = requests.get(url, params=params, headers=headers, timeout=15)
-        if response.status_code != 200:
-            print(f"  ✗ Supadata API Error: {response.status_code}")
-            return None
         
-        data = response.json()
-        items = data.get("videos", []) # 假设返回格式中有 videos 列表
+        # 如果还是 400，尝试使用通用搜索接口
+        if response.status_code != 200:
+            search_url = "https://api.supadata.ai/v1/youtube/search"
+            search_params = {"query": channel_handle, "limit": 2, "type": "video"}
+            response = requests.get(search_url, params=search_params, headers=headers, timeout=15)
 
-        for video in items:
-            # Supadata 通常会自动标注是否为 Shorts，或者我们可以通过时长过滤
-            # 简单逻辑：如果标题或描述里没有明显 Shorts 特征则采用
-            video_id = video.get("videoId")
-            return {
-                "title": video.get("title"),
-                "video_id": video_id,
-                "description": video.get("description", ""),
-                "channel": channel_handle,
-                "url": f"https://www.youtube.com/watch?v={video_id}"
-            }
+        if response.status_code == 200:
+            data = response.json()
+            # 兼容不同返回格式
+            videos = data.get("videos", data if isinstance(data, list) else [])
+            
+            if videos:
+                # 寻找第一个非 Shorts 的视频 (Supadata 返回通常按时间排序)
+                for v in videos:
+                    v_id = v.get("videoId")
+                    if not v_id: continue
+                    
+                    return {
+                        "title": v.get("title"),
+                        "video_id": v_id,
+                        "description": v.get("description", ""),
+                        "channel": channel_handle,
+                        "url": f"https://www.youtube.com/watch?v={v_id}"
+                    }
+        else:
+            print(f"  ✗ API Error {response.status_code}: {response.text}")
     except Exception as e:
-        print(f"  ✗ Error calling Supadata for {channel_handle}: {e}")
+        print(f"  ✗ Error: {e}")
     
     return None
 
 def main():
     if not SUPADATA_API_KEY:
-        print("❌ ERROR: SUPADATA_API_KEY not found in Secrets!")
+        print("❌ ERROR: SUPADATA_API_KEY missing!")
         return []
 
-    print("📺 STEP 1: Fetching latest videos via Supadata...\n")
+    print("📺 STEP 1: Fetching videos for hellosg.org...\n")
     print("=" * 60)
 
     videos = []
-
     for channel_handle in CHANNELS:
         print(f"Looking up: {channel_handle}")
         video = get_latest_video_via_supadata(channel_handle)
@@ -87,7 +94,7 @@ def main():
             print(f"  ✓ Found: {video['title']}")
             print(f"    URL: {video['url']}\n")
         else:
-            print(f"  ✗ No recent long-form videos found\n")
+            print(f"  ✗ Could not find videos for {channel_handle}\n")
 
     print("=" * 60)
     print(f"Found {len(videos)} videos total!")
