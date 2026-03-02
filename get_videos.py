@@ -10,14 +10,14 @@ YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY")
 # 恢复项目原本的频道列表 (硅谷 AI/Tech 频道)
 # ========================================
 CHANNELS = [
-    "@LatentSpacePod",
+    # "@LatentSpacePod",
     "@ycombinator",
-    "@a16z",
-    "@RedpointAI",
-    "@EveryInc",
-    "@DataDrivenNYC",
-    "@NoPriorsPodcast",
-    "@DwarkeshPatel",
+    #"@a16z",
+    #"@RedpointAI",
+    #"@EveryInc",
+    #"@DataDrivenNYC",
+    #"@NoPriorsPodcast",
+    #"@DwarkeshPatel",
 ]
 
 def get_channel_info(youtube, channel_handle):
