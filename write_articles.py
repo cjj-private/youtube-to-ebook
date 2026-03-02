@@ -18,16 +18,16 @@ def write_articles_for_videos(videos_with_transcripts):
     for video in videos_with_transcripts:
         print(f"🚀 正在通过 Groq 为 {video['title']} 润色文章...")
         
-        prompt = f"""
-        你是一位【哈啰人力】的资深主编。请根据以下字幕写一篇深度政策分析文章。
-        标题: {video['title']}
-        字幕内容: {video['transcript']}
-        
-        要求：
-        1. 文风参考《三联生活周刊》，优雅且专业。
-        2. 深度分析新加坡人力政策对外国劳工的具体影响。
-        3. 结尾带上【哈啰人力 (hellosg.org)】的独家观察。
-        """
+            prompt = f"""
+                    你是一位深度内容拆解专家。请根据以下视频字幕写一篇深度分析文章。
+                    标题: {video['title']}
+                    字幕内容: {video['transcript']}
+                    
+                    要求：
+                    1. 风格优雅、有洞察力。
+                    2. 提炼出视频中的 3 个核心金句或核心观点。
+                    3. 结尾总结该内容对职场人或创业者的启发。
+                    """
 
         data = {
             "model": "llama-3.3-70b-versatile",
