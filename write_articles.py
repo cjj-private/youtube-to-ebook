@@ -5,7 +5,7 @@ import json
 def write_articles_for_videos(videos_with_transcripts):
     api_key = st.secrets.get("GROQ_API_KEY")
     if not api_key:
-        st.error("❌ 未在 Secrets 中发现 GROQ_API_KEY")
+        st.error("❌ 未发现 GROQ_API_KEY")
         return []
 
     articles = []
@@ -16,23 +16,24 @@ def write_articles_for_videos(videos_with_transcripts):
     }
 
     for video in videos_with_transcripts:
-        print(f"🚀 正在通过 Groq 为 {video['title']} 润色文章...")
+        print(f"🚀 正在为视频生成深度报道: {video['title']}...")
         
-            prompt = f"""
-                    你是一位深度内容拆解专家。请根据以下视频字幕写一篇深度分析文章。
-                    标题: {video['title']}
-                    字幕内容: {video['transcript']}
-                    
-                    要求：
-                    1. 风格优雅、有洞察力。
-                    2. 提炼出视频中的 3 个核心金句或核心观点。
-                    3. 结尾总结该内容对职场人或创业者的启发。
-                    """
+        # 注意：这里的 prompt 变量必须和上方的 for 循环保持对齐（通常是 8 个空格或 2 个 Tab）
+        prompt = f"""
+        你是一位深度内容拆解专家。请根据以下视频字幕写一篇深度分析文章。
+        标题: {video['title']}
+        字幕内容: {video['transcript']}
+        
+        要求：
+        1. 风格优雅、有洞察力，类似《三联生活周刊》的深度感。
+        2. 提炼出视频中的 3 个核心观点或金句。
+        3. 结尾总结该内容对读者的实际启发。
+        """
 
         data = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": "你是一位专业的政策分析主编。"},
+                {"role": "system", "content": "你是一位专业的深度内容分析主编。"},
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.7
@@ -44,16 +45,14 @@ def write_articles_for_videos(videos_with_transcripts):
 
             if "choices" in result:
                 content_text = result['choices'][0]['message']['content']
-                
-                # ✅ 关键修复：补齐 send_email.py 需要的所有字段
                 articles.append({
                     "title": video['title'],
-                    "article": content_text,  # 核心文章内容
-                    "url": video['url'],      # 视频链接
-                    "channel": video.get('channel', 'YouTube Channel'), # 补齐频道名，如果没有则显示默认
-                    "content": content_text   # 兼容性冗余
+                    "article": content_text,
+                    "url": video['url'],
+                    "channel": video.get('channel', 'YouTube Channel'),
+                    "content": content_text
                 })
-                print(f" ✅ Groq 写作成功！已打包所有必要字段。")
+                print(f" ✅ 文章生成成功！")
             else:
                 print(f" ❌ Groq 报错: {result.get('error', {}).get('message')}")
         except Exception as e:
