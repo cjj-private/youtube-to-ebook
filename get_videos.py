@@ -12,6 +12,7 @@ YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY")
 CHANNELS = [
     # "@LatentSpacePod",
     "@ycombinator",
+    "@DanKoeTalks",
     #"@a16z",
     #"@RedpointAI",
     #"@EveryInc",
