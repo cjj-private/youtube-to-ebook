@@ -9,7 +9,6 @@ def write_articles_for_videos(videos_with_transcripts):
         return []
 
     articles = []
-    # Groq 的标准 API 地址
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -17,7 +16,7 @@ def write_articles_for_videos(videos_with_transcripts):
     }
 
     for video in videos_with_transcripts:
-        print(f"🚀 正在通过 Groq (Llama 3) 快速生成报道: {video['title']}...")
+        print(f"🚀 正在通过 Groq 为 {video['title']} 润色文章...")
         
         prompt = f"""
         你是一位【哈啰人力】的资深主编。请根据以下字幕写一篇深度政策分析文章。
@@ -27,11 +26,11 @@ def write_articles_for_videos(videos_with_transcripts):
         要求：
         1. 文风参考《三联生活周刊》，优雅且专业。
         2. 深度分析新加坡人力政策对外国劳工的具体影响。
-        3. 结尾带上【哈啰人力】的独家观察。
+        3. 结尾带上【哈啰人力 (hellosg.org)】的独家观察。
         """
 
         data = {
-            "model": "llama-3.3-70b-versatile", # 使用最强的 70B 模型
+            "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": "你是一位专业的政策分析主编。"},
                 {"role": "user", "content": prompt}
@@ -45,16 +44,17 @@ def write_articles_for_videos(videos_with_transcripts):
 
             if "choices" in result:
                 content_text = result['choices'][0]['message']['content']
+                
+                # 关键修复：这里的 Key 必须叫 'article' 以匹配你的 send_email.py
                 articles.append({
                     "title": video['title'],
-                    "content": content_text,
-                    "html": f"<h2>{video['title']}</h2><p>{content_text.replace('\n', '<br>')}</p>",
+                    "article": content_text,  # 统一改为 article
+                    "content": content_text,  # 保留一份 content 备用
                     "url": video['url']
                 })
-                print(f" ✅ 【重大突破】Groq 成功写好了文章！")
+                print(f" ✅ Groq 写作成功！")
             else:
-                error_info = result.get('error', {}).get('message', '未知错误')
-                print(f" ❌ Groq 报错: {error_info}")
+                print(f" ❌ Groq 报错: {result.get('error', {}).get('message')}")
         except Exception as e:
             print(f" ❌ 请求异常: {e}")
 
