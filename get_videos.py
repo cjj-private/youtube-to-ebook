@@ -1,67 +1,104 @@
 import os
-import streamlit as st
+import requests
 from googleapiclient.discovery import build
+import streamlit as st
 
-# --- 核心安全修改：从云端保险箱读取 Key ---
-def get_youtube_key():
-    if "YOUTUBE_API_KEY" in st.secrets:
-        return st.secrets["YOUTUBE_API_KEY"]
-    return os.getenv("YOUTUBE_API_KEY")
+# 从 Streamlit Secrets 获取 API Key
+YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY")
 
-YOUTUBE_API_KEY = get_youtube_key()
+# ========================================
+# 恢复项目原本的频道列表 (硅谷 AI/Tech 频道)
+# ========================================
+CHANNELS = [
+    "@LatentSpacePod",
+    "@ycombinator",
+    "@a16z",
+    "@RedpointAI",
+    "@EveryInc",
+    "@DataDrivenNYC",
+    "@NoPriorsPodcast",
+    "@DwarkeshPatel",
+]
 
-# 哈啰人力关注的频道 (你可以根据需要增加)
-CHANNELS = ["@MOMSingapore", "@CNA", "@TheStraitsTimes"]
-
-def get_channel_uploads_id(youtube, handle):
-    handle = handle.lstrip("@")
+def get_channel_info(youtube, channel_handle):
+    """
+    通过 handle 寻找频道信息。
+    为了避免 404，我们改用 list(forHandle=...)。
+    """
+    handle = channel_handle.lstrip("@")
     try:
-        # 强制使用 API Key 模式，避免 TransportError
-        request = youtube.channels().list(part="contentDetails", forHandle=handle)
+        request = youtube.channels().list(
+            part="snippet,contentDetails",
+            forHandle=handle
+        )
         response = request.execute()
-        if "items" in response:
-            return response["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
-    except Exception as e:
-        st.error(f"无法获取频道 {handle} 信息: {e}")
-    return None
 
-def get_latest_video(youtube, playlist_id, channel_name):
-    try:
-        request = youtube.playlistItems().list(part="snippet", playlistId=playlist_id, maxResults=3)
-        response = request.execute()
-        for item in response.get("items", []):
-            vid = item["snippet"]["resourceId"]["videoId"]
-            # 这里简单返回第一个视频，你可以后续加入 Shorts 过滤逻辑
+        if response.get("items"):
+            channel = response["items"][0]
             return {
-                "title": item["snippet"]["title"],
-                "video_id": vid,
-                "description": item["snippet"]["description"],
-                "channel": channel_name,
-                "url": f"https://www.youtube.com/watch?v={vid}"
+                "channel_id": channel["id"],
+                "channel_name": channel["snippet"]["title"],
+                "uploads_playlist_id": channel["contentDetails"]["relatedPlaylists"]["uploads"]
             }
     except Exception as e:
-        print(f"获取视频列表失败: {e}")
+        print(f"  ✗ 获取频道 {channel_handle} 失败: {e}")
+    return None
+
+def is_youtube_short(video_id):
+    """
+    检测是否为 Shorts 短视频。
+    """
+    shorts_url = f"https://www.youtube.com/shorts/{video_id}"
+    try:
+        response = requests.head(shorts_url, allow_redirects=True, timeout=5)
+        return "/shorts/" in response.url
+    except:
+        return False
+
+def get_latest_video(youtube, uploads_playlist_id, channel_name):
+    """
+    从上传列表中获取最新的长视频。
+    """
+    request = youtube.playlistItems().list(
+        part="snippet",
+        playlistId=uploads_playlist_id,
+        maxResults=5 # 缩小范围，提高速度
+    )
+    response = request.execute()
+
+    for item in response.get("items", []):
+        video_id = item["snippet"]["resourceId"]["videoId"]
+        if is_youtube_short(video_id):
+            continue
+
+        return {
+            "title": item["snippet"]["title"],
+            "video_id": video_id,
+            "description": item["snippet"]["description"],
+            "channel": channel_name,
+            "url": f"https://www.youtube.com/watch?v={video_id}"
+        }
     return None
 
 def main():
     if not YOUTUBE_API_KEY:
-        st.warning("⚠️ 没找到 YOUTUBE_API_KEY，请检查 Secrets 设置")
+        print("❌ 错误: 未找到 YOUTUBE_API_KEY")
         return []
 
-    # 初始化 YouTube 客户端 (static_discovery=False 提高在 Streamlit 的兼容性)
-    youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY, static_discovery=False)
+    youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
+    print(f"正在抓取原本的 {len(CHANNELS)} 个技术频道...\n")
     
     videos = []
-    print("📺 正在抓取新加坡相关政策视频...")
-    
-    for handle in CHANNELS:
-        uploads_id = get_channel_uploads_id(youtube, handle)
-        if uploads_id:
-            video = get_latest_video(youtube, uploads_id, handle)
+    for channel_handle in CHANNELS:
+        info = get_channel_info(youtube, channel_handle)
+        if info:
+            video = get_latest_video(youtube, info["uploads_playlist_id"], info["channel_name"])
             if video:
                 videos.append(video)
-                print(f" ✅ 找到: {video['title']}")
-    
+                print(f"  ✅ 找到: {video['title']}")
+        else:
+            print(f"  ⚠️ 找不到频道: {channel_handle}")
+
     return videos
 
 if __name__ == "__main__":
