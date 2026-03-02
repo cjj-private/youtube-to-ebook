@@ -16,27 +16,31 @@ def write_articles_for_videos(videos_with_transcripts):
     }
 
     for video in videos_with_transcripts:
-        print(f"🚀 正在为视频生成深度报道: {video['title']}...")
+        print(f"🚀 正在为视频生成【长篇】深度报道: {video['title']}...")
         
-        # 注意：这里的 prompt 变量必须和上方的 for 循环保持对齐（通常是 8 个空格或 2 个 Tab）
+        # 💡 修改了 Prompt，要求 1500 字左右，并增加章节感
         prompt = f"""
-        你是一位深度内容拆解专家。请根据以下视频字幕写一篇深度分析文章。
+        你是一位深度内容拆解专家。请根据以下视频字幕写一篇深度分析长文。
         标题: {video['title']}
         字幕内容: {video['transcript']}
         
         要求：
-        1. 风格优雅、有洞察力，类似《三联生活周刊》的深度感。
-        2. 提炼出视频中的 3 个核心观点或金句。
-        3. 结尾总结该内容对读者的实际启发。
+        1. 篇幅要求：请写出一篇 1000-1500 字左右的深度报道。
+        2. 结构要求：
+           - 【引言】：结合当下 AI 趋势引入主题。
+           - 【核心拆解】：分 3-4 个章节详细论述视频中的技术细节和逻辑。
+           - 【行业影响】：分析该技术/观点对整个行业意味着什么。
+           - 【深度总结】：给读者的实操建议或启发。
+        3. 文风：专业、优雅、充满洞察力，类似《连线》(Wired) 或《三联生活周刊》的封面文章。
         """
 
         data = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
-                {"role": "system", "content": "你是一位专业的深度内容分析主编。"},
+                {"role": "system", "content": "你是一位专业的科技专栏主编，擅长撰写长篇深度报道。"},
                 {"role": "user", "content": prompt}
             ],
-            "temperature": 0.7
+            "temperature": 0.6 # 稍微降低随机性，让逻辑更严密
         }
 
         try:
@@ -52,7 +56,7 @@ def write_articles_for_videos(videos_with_transcripts):
                     "channel": video.get('channel', 'YouTube Channel'),
                     "content": content_text
                 })
-                print(f" ✅ 文章生成成功！")
+                print(f" ✅ 长篇深度文章生成成功！")
             else:
                 print(f" ❌ Groq 报错: {result.get('error', {}).get('message')}")
         except Exception as e:
