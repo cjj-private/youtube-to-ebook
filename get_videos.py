@@ -1,103 +1,67 @@
-"""
-Part 1: Fetch Latest Videos from YouTube Channels
-POWERED BY SUPADATA (Fixed 400 Error)
-Optimized for hellosg.org (哈啰人力)
-"""
-
 import os
-import requests
 import streamlit as st
-from dotenv import load_dotenv
+from googleapiclient.discovery import build
 
-# 加载本地环境
-load_dotenv()
+# --- 核心安全修改：从云端保险箱读取 Key ---
+def get_youtube_key():
+    if "YOUTUBE_API_KEY" in st.secrets:
+        return st.secrets["YOUTUBE_API_KEY"]
+    return os.getenv("YOUTUBE_API_KEY")
 
-def get_supadata_key():
-    if "SUPADATA_API_KEY" in st.secrets:
-        return st.secrets["SUPADATA_API_KEY"]
-    return os.getenv("SUPADATA_API_KEY")
+YOUTUBE_API_KEY = get_youtube_key()
 
-SUPADATA_API_KEY = get_supadata_key()
+# 哈啰人力关注的频道 (你可以根据需要增加)
+CHANNELS = ["@MOMSingapore", "@CNA", "@TheStraitsTimes"]
 
-# ========================================
-# 订阅频道列表
-# ========================================
-CHANNELS = [
-    "@MOMSingapore",     # 新加坡人力部
-    "@CNA",              # 亚洲新闻台
-    "@TheStraitsTimes",  # 海峡时报
-    "@LatentSpacePod",
-]
-
-def get_latest_video_via_supadata(channel_handle):
-    """
-    通过 Supadata API 获取频道视频。
-    修复 400 错误：先搜索频道获取正确的 ID 或数据。
-    """
-    clean_handle = channel_handle.lstrip("@")
-    headers = {"x-api-key": SUPADATA_API_KEY}
-    
-    # 策略：使用 Supadata 的 YouTube 视频抓取接口
-    # 尝试直接使用正确的参数名：channelHandle (注意大小写和API文档一致性)
-    url = "https://api.supadata.ai/v1/youtube/channel/videos"
-    params = {"channelHandle": clean_handle}
-
+def get_channel_uploads_id(youtube, handle):
+    handle = handle.lstrip("@")
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=15)
-        
-        # 如果还是 400，尝试使用通用搜索接口
-        if response.status_code != 200:
-            search_url = "https://api.supadata.ai/v1/youtube/search"
-            search_params = {"query": channel_handle, "limit": 2, "type": "video"}
-            response = requests.get(search_url, params=search_params, headers=headers, timeout=15)
-
-        if response.status_code == 200:
-            data = response.json()
-            # 兼容不同返回格式
-            videos = data.get("videos", data if isinstance(data, list) else [])
-            
-            if videos:
-                # 寻找第一个非 Shorts 的视频 (Supadata 返回通常按时间排序)
-                for v in videos:
-                    v_id = v.get("videoId")
-                    if not v_id: continue
-                    
-                    return {
-                        "title": v.get("title"),
-                        "video_id": v_id,
-                        "description": v.get("description", ""),
-                        "channel": channel_handle,
-                        "url": f"https://www.youtube.com/watch?v={v_id}"
-                    }
-        else:
-            print(f"  ✗ API Error {response.status_code}: {response.text}")
+        # 强制使用 API Key 模式，避免 TransportError
+        request = youtube.channels().list(part="contentDetails", forHandle=handle)
+        response = request.execute()
+        if "items" in response:
+            return response["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
     except Exception as e:
-        print(f"  ✗ Error: {e}")
-    
+        st.error(f"无法获取频道 {handle} 信息: {e}")
+    return None
+
+def get_latest_video(youtube, playlist_id, channel_name):
+    try:
+        request = youtube.playlistItems().list(part="snippet", playlistId=playlist_id, maxResults=3)
+        response = request.execute()
+        for item in response.get("items", []):
+            vid = item["snippet"]["resourceId"]["videoId"]
+            # 这里简单返回第一个视频，你可以后续加入 Shorts 过滤逻辑
+            return {
+                "title": item["snippet"]["title"],
+                "video_id": vid,
+                "description": item["snippet"]["description"],
+                "channel": channel_name,
+                "url": f"https://www.youtube.com/watch?v={vid}"
+            }
+    except Exception as e:
+        print(f"获取视频列表失败: {e}")
     return None
 
 def main():
-    if not SUPADATA_API_KEY:
-        print("❌ ERROR: SUPADATA_API_KEY missing!")
+    if not YOUTUBE_API_KEY:
+        st.warning("⚠️ 没找到 YOUTUBE_API_KEY，请检查 Secrets 设置")
         return []
 
-    print("📺 STEP 1: Fetching videos for hellosg.org...\n")
-    print("=" * 60)
-
+    # 初始化 YouTube 客户端 (static_discovery=False 提高在 Streamlit 的兼容性)
+    youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY, static_discovery=False)
+    
     videos = []
-    for channel_handle in CHANNELS:
-        print(f"Looking up: {channel_handle}")
-        video = get_latest_video_via_supadata(channel_handle)
-
-        if video:
-            videos.append(video)
-            print(f"  ✓ Found: {video['title']}")
-            print(f"    URL: {video['url']}\n")
-        else:
-            print(f"  ✗ Could not find videos for {channel_handle}\n")
-
-    print("=" * 60)
-    print(f"Found {len(videos)} videos total!")
+    print("📺 正在抓取新加坡相关政策视频...")
+    
+    for handle in CHANNELS:
+        uploads_id = get_channel_uploads_id(youtube, handle)
+        if uploads_id:
+            video = get_latest_video(youtube, uploads_id, handle)
+            if video:
+                videos.append(video)
+                print(f" ✅ 找到: {video['title']}")
+    
     return videos
 
 if __name__ == "__main__":
